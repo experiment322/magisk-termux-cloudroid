@@ -11,14 +11,15 @@
 # termux info
 TERMUX_UID="$(awk '($1 == "com.termux") { print $2; exit }' /data/system/packages.list)"
 TERMUX_DATA="$(awk '($1 == "com.termux") { print $4; exit }' /data/system/packages.list)"
+TERMUX_BIN="$TERMUX_DATA/files/usr/bin"
+TERMUX_HOME="$TERMUX_DATA/files/home"
 
 # directories/files used by cloudroid
 TEMP="/cache"
 MODDIR=${0%/*}
-WORKDIR="/data/adb"
-SWAPFILE="$WORKDIR/swapfile"
-TERMUX_SCRIPT="cloudroid-start"
-CONTROL_POINT="$TERMUX_DATA/files/home/cloudroid"
+SWAPFILE="/data/adb/swapfile"
+CLOUDROID_ROOT="cloudroid"
+CLOUDROID_CLI_SCRIPT="cloudroid-start"
 
 # main parameters for cloudroid
 SWAPFILE_SIZE="$(awk '($1 == "MemTotal:") { print int($2 * 512) }' /proc/meminfo)"
@@ -105,19 +106,19 @@ cloudroid_mount_cloud_partition() {
 		return
 	fi
 
-	mount -o noatime "$CLOUD_PARTITION" "$CONTROL_POINT"
+	mount -o noatime "$CLOUD_PARTITION" "$TERMUX_HOME/$CLOUDROID_ROOT"
 	cloudroid_log "cloud partition status ->"
 	mount | grep -F "$CLOUD_PARTITION"
 }
 
 # install cloudroid-start script in termux (used to create and start instances)
 cloudroid_termux_install_script() {
-	cloudroid_log "installing '$TERMUX_SCRIPT' script in termux"
-	cp "$MODDIR/common/termux/$TERMUX_SCRIPT" "$TERMUX_DATA/files/usr/bin/$TERMUX_SCRIPT"
-	chown "$TERMUX_UID":"$TERMUX_UID" "$TERMUX_DATA/files/usr/bin/$TERMUX_SCRIPT"
-	chmod 700 "$TERMUX_DATA/files/usr/bin/$TERMUX_SCRIPT"
-	cloudroid_log "'$TERMUX_SCRIPT' script status ->"
-	ls -l "$TERMUX_DATA/files/usr/bin/$TERMUX_SCRIPT"
+	cloudroid_log "installing '$CLOUDROID_CLI_SCRIPT' script in termux"
+	cp "$MODDIR/termux/$CLOUDROID_CLI_SCRIPT" "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
+	chown "$TERMUX_UID":"$TERMUX_UID" "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
+	chmod 700 "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
+	cloudroid_log "'$CLOUDROID_CLI_SCRIPT' script status ->"
+	ls -l "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
 }
 
 # disable mediatek hps hotplug strategy & bring all cpus online
@@ -185,12 +186,12 @@ cloudroid_init() {
 	cloudroid_log "termux app installed -> continue"
 
 	# check if the cloudroid control point exists
-	cloudroid_log "checking for 'cloudroid' folder in termux home"
-	if [ ! -d "$CONTROL_POINT" ]; then
-		cloudroid_log "aborting setup -> folder 'cloudroid' is missing from termux home"
+	cloudroid_log "checking for '$CLOUDROID_ROOT' folder in termux home"
+	if [ ! -d "$TERMUX_HOME/$CLOUDROID_ROOT" ]; then
+		cloudroid_log "aborting setup -> folder '$CLOUDROID_ROOT' is missing from termux home"
 		exit 1
 	fi
-	cloudroid_log "'cloudroid' folder present in termux home -> continue"
+	cloudroid_log "'$CLOUDROID_ROOT' folder present in termux home -> continue"
 
 	# cloudroid init starting
 	cloudroid_log "setup started"
