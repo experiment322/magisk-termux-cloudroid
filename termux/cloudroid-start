@@ -14,7 +14,8 @@ if [ "$#" -eq 0 ]; then
 	INSTANCE_CPUS="${INSTANCE_CPUS:-"$(nproc)"}"
 	INSTANCE_MEMORY="${INSTANCE_MEMORY:-"1G"}"
 
-	SCRIPT_PATH="$(realpath --relative-to="$HOME" "${BASH_SOURCE[0]}")"
+	SCRIPT_PATH="${0%/*}"
+	SCRIPT_NAME="${0##*/}"
 	INSTANCE_OPTS=("$INSTANCE_NAME" "$INSTANCE_SIZE" "$INSTANCE_CPUS" "$INSTANCE_MEMORY")
 	PROOT_DISTRO_OPTS=("--isolated" "--no-fake-proc" "--no-link2symlink" "--no-sysvipc" "--termux-home" "$INSTANCE_NAME")
 
@@ -24,8 +25,9 @@ if [ "$#" -eq 0 ]; then
 			-- apk add bash cdrkit qemu-img qemu-system-aarch64
 	fi
 
+	cp -u "$SCRIPT_PATH/$SCRIPT_NAME" "$HOME/cloudroid"
 	exec proot-distro login "${PROOT_DISTRO_OPTS[@]}" \
-		-- "$SCRIPT_PATH" "${INSTANCE_OPTS[@]}"
+		-- "$HOME/cloudroid/$SCRIPT_NAME" "${INSTANCE_OPTS[@]}"
 fi
 
 # instance set-up and start-up below
