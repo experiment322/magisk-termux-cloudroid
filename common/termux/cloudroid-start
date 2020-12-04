@@ -1,0 +1,120 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+remove_ansi_codes() {
+	cat | sed -r 's~\x01?(\x1B\(B)?\x1B\[([0-9;]*)?[JKmsu]\x02?~~g'
+}
+
+# bootstrap alpine-based proot and recall the script inside of it
+if [ "$#" -eq 0 ]; then
+	INSTANCE_NAME="${INSTANCE_NAME:-"cloudroid-1"}"
+	INSTANCE_SIZE="${INSTANCE_SIZE:-"10G"}"
+	INSTANCE_CPUS="${INSTANCE_CPUS:-"$(nproc)"}"
+	INSTANCE_MEMORY="${INSTANCE_MEMORY:-"1G"}"
+
+	SCRIPT_PATH="$(realpath --relative-to="$HOME" "${BASH_SOURCE[0]}")"
+	INSTANCE_OPTS=("$INSTANCE_NAME" "$INSTANCE_SIZE" "$INSTANCE_CPUS" "$INSTANCE_MEMORY")
+	PROOT_DISTRO_OPTS=("--isolated" "--no-fake-proc" "--no-link2symlink" "--no-sysvipc" "--termux-home" "$INSTANCE_NAME")
+
+	if ! proot-distro list | remove_ansi_codes | grep -q "Alias: $INSTANCE_NAME"; then
+		proot-distro install --override-alias "$INSTANCE_NAME" alpine
+		proot-distro login "${PROOT_DISTRO_OPTS[@]}" \
+			-- apk add bash cdrkit qemu-img qemu-system-aarch64
+	fi
+
+	exec proot-distro login "${PROOT_DISTRO_OPTS[@]}" \
+		-- "$SCRIPT_PATH" "${INSTANCE_OPTS[@]}"
+fi
+
+# instance set-up and start-up below
+NAME="$1"
+SIZE="$2"
+CPUS="$3"
+MEMORY="$4"
+
+VERSION="10"
+QEMU_EFI="QEMU_EFI.fd"
+BASE_IMAGE="debian-$VERSION-openstack-arm64.qcow2"
+QEMU_EFI_URL="https://releases.linaro.org/components/kernel/uefi-linaro/latest/release/qemu64/$QEMU_EFI"
+BASE_IMAGE_URL="https://cdimage.debian.org/cdimage/openstack/current-$VERSION/$BASE_IMAGE"
+
+[ -d "$HOME/cloudroid/$NAME" ] || mkdir "$HOME/cloudroid/$NAME"
+cd "$HOME/cloudroid/$NAME" && pwd
+
+if [ ! -f flash0.img ] || [ ! -f flash1.img ]; then
+	echo "W: BIOS image(s) missing"
+
+	if [ ! -f "$QEMU_EFI" ]; then
+		echo "I: Fetching BIOS code"
+		wget -c -O "$QEMU_EFI" "$QEMU_EFI_URL"
+	fi
+
+	echo "I: Building BIOS image(s)"
+	dd if=/dev/zero of=flash0.img bs=1M count=64
+	dd if="$QEMU_EFI" of=flash0.img conv=notrunc
+	dd if=/dev/zero of=flash1.img bs=1M count=64
+
+	echo "I: BIOS image(s) OK"
+fi
+
+if [ ! -f hda.img ]; then
+	echo "W: Instance image missing"
+
+	if [ ! -f "$BASE_IMAGE" ]; then
+		echo "I: Downloading base image $BASE_IMAGE"
+		wget -c -O "$BASE_IMAGE" "$BASE_IMAGE_URL"
+	fi
+
+	echo "I: Building instance image"
+
+	echo "I: Converting instance image from qcow2 to raw"
+	qemu-img convert -f qcow2 -O raw "$BASE_IMAGE" hda.img
+
+	echo "I: Resizing instance image to $SIZE"
+	qemu-img resize -f raw hda.img "$SIZE"
+
+	echo "I: Instance image OK"
+fi
+
+if [ ! -f seed.iso ]; then
+	echo "W: Instance seed image missing"
+
+	echo "I: Generating seed meta-data"
+	cat >meta-data <<EOF
+local-hostname: $NAME
+EOF
+
+	echo "I: Generating seed user-data"
+	cat >user-data <<EOF
+#cloud-config
+users:
+  - name: cloudroid
+    ssh-authorized-keys: [$(cat "$HOME/.ssh/"*.pub | sed 's/\(.*\)/"\1", /g' | tr -d '\n' | head -c -2)]
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    groups: sudo
+    shell: /bin/bash
+runcmd:
+  - echo "AllowUsers cloudroid" >> /etc/ssh/sshd_config
+  - restart ssh
+EOF
+
+	echo "I: Generating instance seed image"
+	genisoimage -output seed.iso -volid cidata -input-charset utf-8 -joliet -rock user-data meta-data
+
+	echo "I: Instance seed image OK"
+fi
+
+echo "I: Launching instance..."
+qemu-system-aarch64 \
+	-nographic \
+	-smp "$CPUS" -m "$MEMORY" \
+	-machine virt -cpu host -accel kvm \
+	-drive file=flash0.img,if=pflash,format=raw \
+	-drive file=flash1.img,if=pflash,format=raw \
+	-drive file=hda.img,if=virtio,format=raw \
+	-drive file=seed.iso,if=virtio,format=raw \
+	-nic user,hostfwd=tcp::2222-:22
+
+# TO-DO: add adjustable port forwarding + check for image type before conversion
