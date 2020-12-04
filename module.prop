@@ -1,6 +1,6 @@
 id=magisk-termux-cloudroid
 name=Cloudroid Magisk Module
-version=v1.0
+version=1.0
 versionCode=1
 author=experiment322
 description=Performance tweaks and termux script for cloudroid
