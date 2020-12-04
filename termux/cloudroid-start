@@ -27,7 +27,7 @@ if [ "$#" -eq 0 ]; then
 
 	cp -u "$SCRIPT_PATH/$SCRIPT_NAME" "$HOME/cloudroid"
 	exec proot-distro login "${PROOT_DISTRO_OPTS[@]}" \
-		-- "$HOME/cloudroid/$SCRIPT_NAME" "${INSTANCE_OPTS[@]}"
+		-- "\$HOME/cloudroid/$SCRIPT_NAME" "${INSTANCE_OPTS[@]}"
 fi
 
 # instance set-up and start-up below

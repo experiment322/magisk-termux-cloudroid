@@ -102,7 +102,6 @@ cloudroid_expose_kvm() {
 cloudroid_termux_install_script() {
 	cloudroid_log "installing '$CLOUDROID_CLI_SCRIPT' script in termux"
 	cp "$MODDIR/termux/$CLOUDROID_CLI_SCRIPT" "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
-	sed -i "1s|^#!/bin/bash$|#!$TERMUX_BIN/bash|" "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
 	chown "$TERMUX_UID":"$TERMUX_UID" "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
 	chmod 700 "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
 	cloudroid_log "'$CLOUDROID_CLI_SCRIPT' script status ->"
