@@ -98,8 +98,19 @@ cloudroid_expose_kvm() {
 	ls -l /dev/kvm
 }
 
+# install cloudroid-start script in termux (used to create and start instances)
+cloudroid_termux_install_script() {
+	cloudroid_log "installing '$CLOUDROID_CLI_SCRIPT' script in termux"
+	cp "$MODDIR/termux/$CLOUDROID_CLI_SCRIPT" "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
+	sed -i "1s|^#!/bin/bash$|#!$TERMUX_BIN/bash|" "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
+	chown "$TERMUX_UID":"$TERMUX_UID" "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
+	chmod 700 "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
+	cloudroid_log "'$CLOUDROID_CLI_SCRIPT' script status ->"
+	ls -l "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
+}
+
 # mount the cloud partition (should be used only if internal storage is small)
-cloudroid_mount_cloud_partition() {
+cloudroid_termux_mount_cloud_partition() {
 	cloudroid_log "mounting cloud partition"
 	if [ -z "$CLOUD_PARTITION" ]; then
 		cloudroid_log "skipping cloud partition mounting -> not configured"
@@ -109,16 +120,6 @@ cloudroid_mount_cloud_partition() {
 	mount -o noatime "$CLOUD_PARTITION" "$TERMUX_HOME/$CLOUDROID_ROOT"
 	cloudroid_log "cloud partition status ->"
 	mount | grep -F "$CLOUD_PARTITION"
-}
-
-# install cloudroid-start script in termux (used to create and start instances)
-cloudroid_termux_install_script() {
-	cloudroid_log "installing '$CLOUDROID_CLI_SCRIPT' script in termux"
-	cp "$MODDIR/termux/$CLOUDROID_CLI_SCRIPT" "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
-	chown "$TERMUX_UID":"$TERMUX_UID" "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
-	chmod 700 "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
-	cloudroid_log "'$CLOUDROID_CLI_SCRIPT' script status ->"
-	ls -l "$TERMUX_BIN/$CLOUDROID_CLI_SCRIPT"
 }
 
 # disable mediatek hps hotplug strategy & bring all cpus online
@@ -200,8 +201,8 @@ cloudroid_init() {
 	cloudroid_set_selinux_permissive
 	cloudroid_enable_swapfile
 	cloudroid_expose_kvm
-	cloudroid_mount_cloud_partition
 	cloudroid_termux_install_script
+	cloudroid_termux_mount_cloud_partition
 
 	# sleep for late post-boot tweaks
 	cloudroid_log "sleeping $SENSITIVE_TWEAKS_DELAY seconds for timing sensitive tweaks"
